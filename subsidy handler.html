@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Transaction Document Checker</title>
+
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f4f6fb;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+ .upload-box {
+  border: 2px dashed #93c5fd;
+  border-radius: 10px;
+  padding: 25px;
+  cursor: pointer;
+  transition: 0.3s;
+  
+  margin-bottom: 32px; /* increase space here */
+
+/* FIX */
+}
+
+.card {
+  background: #ffffff;
+  max-width: 720px;
+  width: 90%;
+  padding: 52px;
+  min-height: 360px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+
+  display: flex;
+  flex-direction: column;
+  gap: 24px;   /* 👈 THIS spaces content evenly */
+  text-align: center;
+}
+.warning {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+
+
+    h2 {
+      margin-bottom: 10px;
+      color: #761e8a;
+    }
+
+    p {
+      font-size: 14px;
+      color: #475569;
+      margin-bottom: 20px;
+    }
+
+    .upload-box {
+      border: 2px dashed #000000;
+      border-radius: 10px;
+      padding: 25px;
+      cursor: pointer;
+      transition: 0.3s;
+      margin-bottom: 40px;
+    }
+
+    .upload-box:hover {
+      background: #eff6ff;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .upload-label {
+      font-weight: 500;
+      color: #000000;
+    }
+
+    button {
+      background: #000000;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:hover {
+      background: #761e8a;
+    }
+
+    .result {
+      margin-top: 20px;
+      font-weight: 600;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+
+    .error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+  <h2>Transaction Document Checker</h2>
+  <p>Upload a PDF to verify if it is a valid transaction document</p>
+
+ 
+<input
+  type="file"
+  id="pdfFile"
+  accept="application/pdf,image/jpeg,image/jpg"
+/>
+
+<label class="upload-box" for="pdfFile">
+  Click to upload PDF / JPG / JPEG
+</label>
+<p id="fileStatus" style="margin-top:12px; color:#16a34a; display:none;"></p>
+
+
+<button id="submitBtn">Check Document</button>
+
+<div id="result" class="result" style="display:none;"></div>
+
+</div>
+
+<script>
+  const API_URL = "http://127.0.0.1:8000/validate-document";
+
+  const fileInput = document.getElementById("pdfFile");
+  const fileStatus = document.getElementById("fileStatus");
+  const submitBtn = document.getElementById("submitBtn");
+  const resultBox = document.getElementById("result");
+
+  submitBtn.disabled = true;
+
+  // File selection handler
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length > 0) {
+      fileStatus.style.display = "block";
+      fileStatus.innerHTML = `📄 <strong>Selected file:</strong> ${fileInput.files[0].name}`;
+      submitBtn.disabled = false;
+    } else {
+      fileStatus.style.display = "none";
+      submitBtn.disabled = true;
+    }
+  });
+
+  submitBtn.addEventListener("click", submitDocument);
+
+  async function submitDocument() {
+    if (!fileInput.files.length) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    resultBox.style.display = "block";
+    resultBox.className = "result";
+    resultBox.textContent = "Processing document…";
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData
+      });
+
+      const payload = await response.json();
+
+      // 🔒 Backend failure handling (required)
+      if (!payload.success) {
+        resultBox.className = "result error";
+        resultBox.innerHTML = `
+          ❌ <strong>Processing Failed</strong><br/>
+          ${payload.error || "Unknown error"}
+        `;
+        return;
+      }
+
+      const decision = payload.data.final_decision.final_status;
+      const reason = payload.data.final_decision.reason;
+      const confidence = payload.data.validation_result.confidence_score;
+
+      if (decision === "Valid") {
+        resultBox.className = "result success";
+      } else if (decision === "Needs Review") {
+        resultBox.className = "result warning";
+      } else {
+        resultBox.className = "result error";
+      }
+
+      resultBox.innerHTML = `
+        <strong>Status:</strong> ${decision}<br/>
+        <strong>Reason:</strong> ${reason}<br/>
+        <strong>Confidence:</strong> ${confidence}
+      `;
+
+    } catch {
+      resultBox.className = "result error";
+      resultBox.textContent = "Unable to connect to verification service.";
+    }
+  }
+</script>
+
+
+
+</body>
+</html>
